@@ -10,6 +10,9 @@ using SettlementBookingSystem.Application;
 using SettlementBookingSystem.Application.Exceptions;
 using SettlementBookingSystem.ProblemDetails;
 using System;
+using System.Collections.Generic;
+using System.Net;
+using AspNetCoreRateLimit;
 
 namespace SettlementBookingSystem
 {
@@ -48,10 +51,34 @@ namespace SettlementBookingSystem
                 options.Map<Exception>(ex => new UnhandledExceptionProblemDetails(ex));
             });
 
+            services.AddMemoryCache();
+            services.Configure<IpRateLimitOptions>(options =>
+            {
+                options.EnableEndpointRateLimiting = true;
+                options.StackBlockedRequests = false;
+                options.HttpStatusCode = (int) HttpStatusCode.TooManyRequests;
+                options.RealIpHeader = "X-Real-IP";
+                options.ClientIdHeader = "X-ClientId";
+                options.GeneralRules = new List<RateLimitRule>
+                {
+                    new()
+                    {
+                        Endpoint = "POST:/booking",
+                        Period = "5s",
+                        Limit = 4,
+                    }
+                };
+            });
+            services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
+            services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
+            services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+            services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
+            services.AddInMemoryRateLimiting();
+
             services.AddControllers();
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "SettlementBookingSystem", Version = "v1" });
+                c.SwaggerDoc("v1", new OpenApiInfo {Title = "SettlementBookingSystem", Version = "v1"});
             });
         }
 
@@ -73,10 +100,9 @@ namespace SettlementBookingSystem
 
             app.UseAuthorization();
 
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapControllers();
-            });
+            app.UseIpRateLimiting();
+
+            app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
         }
     }
 }
