@@ -15,12 +15,10 @@ namespace SettlementBookingSystem.Controllers
     public class BookingController : ControllerBase
     {
         private readonly IMediator _mediator;
-        private readonly IValidator<CreateBookingCommand> _validator;
 
         public BookingController(IMediator mediator, IValidator<CreateBookingCommand> validator)
         {
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
-            _validator = validator;
         }
 
         [HttpPost]
@@ -31,9 +29,6 @@ namespace SettlementBookingSystem.Controllers
         [Produces("application/json")]
         public async Task<ActionResult<BookingDto>> Create([FromBody] CreateBookingCommand command)
         {
-            var errors = await _validator.ValidateAsync(command);
-            if (errors.Errors.Any()) return BadRequest(errors.Errors);
-
             var result = await _mediator.Send(command);
             return Ok(result);
         }

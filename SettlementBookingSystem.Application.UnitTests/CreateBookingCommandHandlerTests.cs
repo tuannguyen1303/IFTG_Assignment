@@ -1,8 +1,12 @@
 using FluentAssertions;
 using FluentValidation;
+using FluentValidation.Results;
+using Moq;
+using SettlementBookingSystem.Application.Bookings;
 using SettlementBookingSystem.Application.Bookings.Commands;
 using SettlementBookingSystem.Application.Exceptions;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -20,7 +24,15 @@ namespace SettlementBookingSystem.Application.UnitTests
                 BookingTime = "09:15",
             };
 
-            var handler = new CreateBookingCommandHandler();
+            if (FakeDbStorage.BookingModels.Any())
+                FakeDbStorage.BookingModels.Clear();
+
+            var mockValidator = new Mock<IValidator<CreateBookingCommand>>();
+
+            mockValidator.Setup(x => x.ValidateAsync(It.IsAny<CreateBookingCommand>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ValidationResult());
+
+            var handler = new CreateBookingCommandHandler(mockValidator.Object);
 
             var result = await handler.Handle(command, CancellationToken.None);
 
@@ -37,7 +49,12 @@ namespace SettlementBookingSystem.Application.UnitTests
                 BookingTime = "00:00",
             };
 
-            var handler = new CreateBookingCommandHandler();
+            var mockValidator = new Mock<IValidator<CreateBookingCommand>>();
+
+            mockValidator.Setup(x => x.ValidateAsync(It.IsAny<CreateBookingCommand>(), It.IsAny<CancellationToken>()))
+                .Throws(new ValidationException("Invalid request"));
+
+            var handler = new CreateBookingCommandHandler(mockValidator.Object);
 
             Func<Task> act = async () => await handler.Handle(command, CancellationToken.None);
 
@@ -53,7 +70,19 @@ namespace SettlementBookingSystem.Application.UnitTests
                 BookingTime = "09:15",
             };
 
-            var handler = new CreateBookingCommandHandler();
+            FakeDbStorage.BookingModels.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                BookingName = command.Name,
+                BookingTime = command.BookingTimeConverted
+            });
+
+            var mockValidator = new Mock<IValidator<CreateBookingCommand>>();
+
+            mockValidator.Setup(x => x.ValidateAsync(It.IsAny<CreateBookingCommand>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ValidationResult());
+
+            var handler = new CreateBookingCommandHandler(mockValidator.Object);
 
             Func<Task> act = async () => await handler.Handle(command, CancellationToken.None);
 
